@@ -1,10 +1,12 @@
 [![Saleor](http://getsaleor.com/mr-saleor-readme.png)](http://getsaleor.com)
 
 
-Saleor
-======
+# Saleor API
+---
 
-Avast ye landlubbers! Saleor is an open-source e-commerce storefront for Python and Django.
+Rest API for Saleor. 
+
+Saleor is an open-source e-commerce storefront for Python and Django.
 
 [Saleor homepage](http://getsaleor.com/)
 
