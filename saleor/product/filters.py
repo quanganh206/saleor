@@ -8,9 +8,10 @@ from django_prices.models import PriceField
 from ..core.filters import SortedFilterSet
 from .models import Product, ProductAttribute
 
-SORT_BY_FIELDS = {
-    'name': pgettext_lazy('Product list sorting option', 'name'),
-    'price': pgettext_lazy('Product list sorting option', 'price')}
+
+SORT_BY_FIELDS = OrderedDict([
+    ('name', pgettext_lazy('Product list sorting option', 'name')),
+    ('price', pgettext_lazy('Product list sorting option', 'price'))])
 
 
 class ProductFilter(SortedFilterSet):
@@ -38,12 +39,12 @@ class ProductFilter(SortedFilterSet):
         product_attributes = (
             ProductAttribute.objects.all()
             .prefetch_related('values')
-            .filter(products_class__products__categories=self.category)
+            .filter(product_types__products__category=self.category)
             .distinct())
         variant_attributes = (
             ProductAttribute.objects.all()
             .prefetch_related('values')
-            .filter(product_variants_class__products__categories=self.category)
+            .filter(product_variant_types__products__category=self.category)
             .distinct())
         return product_attributes, variant_attributes
 

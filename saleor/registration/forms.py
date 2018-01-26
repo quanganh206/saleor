@@ -2,10 +2,10 @@ from django import forms
 from django.contrib.auth import forms as django_forms
 from django.http.request import HttpRequest
 from django.urls import reverse
-from django.utils.translation import pgettext
+from django.utils.translation import pgettext, pgettext_lazy
 from templated_email import send_templated_mail
 
-from saleor.userprofile.models import User
+from ..userprofile.models import User
 
 
 class LoginForm(django_forms.AuthenticationForm):
@@ -22,12 +22,16 @@ class LoginForm(django_forms.AuthenticationForm):
 
 class SignupForm(forms.ModelForm):
     password = forms.CharField(
-        label=pgettext('User form field', 'Password'),
         widget=forms.PasswordInput)
 
     class Meta:
         model = User
         fields = ('email',)
+        labels = {
+            'email': pgettext_lazy(
+                'Email', 'Email'),
+            'password': pgettext_lazy(
+                'Password', 'Password')}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

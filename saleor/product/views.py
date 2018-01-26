@@ -9,7 +9,7 @@ from django.urls import reverse
 
 from ..cart.utils import set_cart_cookie
 from ..core.utils import get_paginator_items, serialize_decimal
-from ..core.utils.filters import get_now_sorted_by, get_sort_by_choices
+from ..core.utils.filters import get_now_sorted_by
 from .filters import ProductFilter, SORT_BY_FIELDS
 from .models import Category
 from .utils import (
@@ -63,8 +63,9 @@ def product_details(request, slug, product_id, form=None):
     variant_picker_data = get_variant_picker_data(
         product, request.discounts, request.currency)
     product_attributes = get_product_attributes_data(product)
+    # show_variant_picker determines if variant picker is used or select input
     show_variant_picker = all([v.attributes for v in product.variants.all()])
-    json_ld_data = product_json_ld(product, availability, product_attributes)
+    json_ld_data = product_json_ld(product, product_attributes)
     return TemplateResponse(
         request, 'product/details.html',
         {'is_visible': is_visible,
@@ -113,9 +114,8 @@ def category_index(request, path, category_id):
     if actual_path != path:
         return redirect('product:category', permanent=True, path=actual_path,
                         category_id=category_id)
-    products = (products_with_details(user=request.user)
-                .filter(categories__id=category.id)
-                .order_by('name'))
+    products = products_with_details(user=request.user).filter(
+        category__id=category.id).order_by('name')
     product_filter = ProductFilter(
         request.GET, queryset=products, category=category)
     products_paginated = get_paginator_items(
@@ -128,7 +128,7 @@ def category_index(request, path, category_id):
     ctx = {'category': category, 'filter_set': product_filter,
            'products': products_and_availability,
            'products_paginated': products_paginated,
-           'sort_by_choices': get_sort_by_choices(product_filter),
+           'sort_by_choices': SORT_BY_FIELDS,
            'now_sorted_by': now_sorted_by,
            'is_descending': is_descending}
     return TemplateResponse(request, 'category/index.html', ctx)
