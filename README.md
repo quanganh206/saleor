@@ -4,7 +4,7 @@
 # Saleor API
 ---
 
-Rest API for Saleor. 
+Rest API for Saleor.
 
 Saleor is an open-source e-commerce storefront for Python and Django.
 
