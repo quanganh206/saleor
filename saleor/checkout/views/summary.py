@@ -2,14 +2,13 @@ from django.contrib import messages
 from django.shortcuts import redirect
 from django.template.response import TemplateResponse
 from django.utils.translation import pgettext, pgettext_lazy
-from satchless.item import InsufficientStock
 
+from ...core.exceptions import InsufficientStock
+from ...account.forms import get_address_form
+from ...account.models import Address
 from ..forms import (
     AnonymousUserBillingForm, BillingAddressesForm,
     BillingWithoutShippingAddressForm, NoteForm)
-from ...userprofile.forms import get_address_form
-from ...userprofile.models import Address
-from ...order import OrderStatus
 
 
 def create_order(checkout):

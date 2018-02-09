@@ -8,11 +8,11 @@ from django.db import transaction
 from django.utils.timezone import now
 from django.utils.translation import pgettext_lazy
 from prices import PriceRange
-from satchless.item import InsufficientStock
 
 from . import CartStatus
-from .models import Cart
+from ..core.exceptions import InsufficientStock
 from ..core.utils import to_local_currency
+from .models import Cart
 
 COOKIE_NAME = 'cart'
 

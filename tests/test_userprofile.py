@@ -9,9 +9,9 @@ from django.template import Context, Template
 from django.urls import reverse
 from django_countries.fields import Country
 
-from saleor.userprofile import forms, i18n, models
-from saleor.userprofile.templatetags.i18n_address_tags import format_address
-from saleor.userprofile.validators import validate_possible_number
+from saleor.account import forms, i18n
+from saleor.account.templatetags.i18n_address_tags import format_address
+from saleor.account.validators import validate_possible_number
 
 
 @pytest.mark.parametrize('country', ['CN', 'PL', 'US'])
@@ -59,21 +59,22 @@ def test_address_form_postal_code_validation():
     assert 'postal_code' in errors
 
 
-@pytest.mark.parametrize('form_data, form_valid, expected_preview, expected_country',[
-    ({'preview': True}, False, True, 'PL'),
-    ({'preview': False,
-      'street_address_1': 'Foo bar',
-      'postal_code': '00-123',
-      'city': 'Warsaw'
-      }, True, False, 'PL'),
-    ({'preview': True, 'country': 'US'}, False, True, 'US'),
-    ({'preview': False,
-      'street_address_1': 'Foo bar',
-      'postal_code': '0213',
-      'city': 'Warsaw'
-      }, False, False, 'PL'),
-])
-def test_get_address_form(form_data, form_valid, expected_preview, expected_country):
+@pytest.mark.parametrize(
+    'form_data, form_valid, expected_preview, expected_country', [
+        ({'preview': True}, False, True, 'PL'),
+        ({
+            'preview': False,
+            'street_address_1': 'Foo bar',
+            'postal_code': '00-123',
+            'city': 'Warsaw'}, True, False, 'PL'),
+        ({'preview': True, 'country': 'US'}, False, True, 'US'),
+        ({
+            'preview': False,
+            'street_address_1': 'Foo bar',
+            'postal_code': '0213',
+            'city': 'Warsaw'}, False, False, 'PL')])
+def test_get_address_form(
+        form_data, form_valid, expected_preview, expected_country):
     data = {
         'first_name': 'John',
         'last_name': 'Doe',
@@ -116,12 +117,12 @@ def test_validate_possible_number(input, exception):
 def test_order_with_lines_pagination(admin_client, order_list):
     settings.PAGINATE_BY = 1
     data = {'page': '1'}
-    url = reverse('profile:details')
+    url = reverse('account:details')
     response = admin_client.get(url, data)
     assert response.status_code == 200
 
     data = {'page': '2'}
-    url = reverse('profile:details')
+    url = reverse('account:details')
     response = admin_client.get(url, data)
     assert response.status_code == 200
 
@@ -145,8 +146,9 @@ def test_format_address_all_options(billing_address):
     address_html = ', '.join(map(str, formatted_address['address_lines']))
     context = Context({'address': billing_address})
     tpl = Template(
-        '{% load i18n_address_tags %}'
-        '{% format_address address include_phone=False inline=True latin=True %}')
+        r'{% load i18n_address_tags %}'
+        r'{% format_address address include_phone=False inline=True'
+        r' latin=True %}')
     rendered_html = tpl.render(context)
     assert address_html in rendered_html
     assert 'inline-address' in rendered_html

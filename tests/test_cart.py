@@ -1,7 +1,8 @@
 import json
-from uuid import uuid4
 from unittest.mock import MagicMock, Mock
+from uuid import uuid4
 
+import pytest
 from django.contrib.auth.models import AnonymousUser
 from django.core import signing
 from django.core.exceptions import ObjectDoesNotExist
@@ -9,15 +10,13 @@ from django.http import HttpResponse
 from django.urls import reverse
 from django_babel.templatetags.babel import currencyfmt
 from prices import Price
-import pytest
-from satchless.item import InsufficientStock
 
 from saleor.cart import CartStatus, forms, utils
 from saleor.cart.context_processors import cart_counter
 from saleor.cart.models import Cart, ProductGroup, find_open_cart_for_user
 from saleor.cart.views import update
+from saleor.core.exceptions import InsufficientStock
 from saleor.discount.models import Sale
-from saleor.product.models import Category
 from saleor.shipping.utils import get_shipment_options
 
 
@@ -30,8 +29,8 @@ def cart_request_factory(rf, monkeypatch):
         else:
             request.user = user
         request.discounts = Sale.objects.all()
-        monkeypatch.setattr(request, 'get_signed_cookie',
-                            Mock(return_value=token))
+        monkeypatch.setattr(
+            request, 'get_signed_cookie', Mock(return_value=token))
         return request
     return create_request
 
@@ -153,8 +152,6 @@ def test_get_user_cart(
 
     # test against getting closed carts
     Cart.objects.create(user=admin_user, status=CartStatus.CANCELED)
-    queryset = Cart.objects.all()
-    carts = list(queryset)
     cart = utils.get_user_cart(admin_user)
     assert Cart.objects.all().count() == 5
     assert cart is None
@@ -169,8 +166,8 @@ def test_get_or_create_cart_from_request(
     anonymous_cart = Cart()
     mock_get_for_user = Mock(return_value=user_cart)
     mock_get_for_anonymous = Mock(return_value=anonymous_cart)
-    monkeypatch.setattr('saleor.cart.utils.get_or_create_user_cart',
-                        mock_get_for_user)
+    monkeypatch.setattr(
+        'saleor.cart.utils.get_or_create_user_cart', mock_get_for_user)
     monkeypatch.setattr(
         'saleor.cart.utils.get_or_create_anonymous_cart_from_token',
         mock_get_for_anonymous)
@@ -191,8 +188,8 @@ def test_get_cart_from_request(
     request = cart_request_factory(user=customer_user, token=token)
     user_cart = Cart(user=customer_user)
     mock_get_for_user = Mock(return_value=user_cart)
-    monkeypatch.setattr('saleor.cart.utils.get_user_cart',
-                        mock_get_for_user)
+    monkeypatch.setattr(
+        'saleor.cart.utils.get_user_cart', mock_get_for_user)
     returned_cart = utils.get_cart_from_request(request, queryset)
     mock_get_for_user.assert_called_once_with(customer_user, queryset)
     assert returned_cart == user_cart
@@ -200,8 +197,8 @@ def test_get_cart_from_request(
     assert list(returned_cart.discounts) == list(request.discounts)
 
     mock_get_for_user = Mock(return_value=None)
-    monkeypatch.setattr('saleor.cart.utils.get_user_cart',
-                        mock_get_for_user)
+    monkeypatch.setattr(
+        'saleor.cart.utils.get_user_cart', mock_get_for_user)
     returned_cart = utils.get_cart_from_request(request, queryset)
     mock_get_for_user.assert_called_once_with(customer_user, queryset)
     assert not Cart.objects.filter(token=returned_cart.token).exists()
@@ -232,7 +229,7 @@ def test_find_and_assign_anonymous_cart(
     client.cookies[utils.COOKIE_NAME] = value
     # Anonymous logs in
     response = client.post(
-        reverse('account_login'),
+        reverse('account:login'),
         {'username': customer_user.email, 'password': 'password'}, follow=True)
     assert response.context['user'] == customer_user
     # User should have only one cart, the same as he had previously in
@@ -246,7 +243,7 @@ def test_find_and_assign_anonymous_cart(
 def test_login_without_a_cart(customer_user, client):
     assert utils.COOKIE_NAME not in client.cookies
     response = client.post(
-        reverse('account_login'),
+        reverse('account:login'),
         {'username': customer_user.email, 'password': 'password'}, follow=True)
     assert response.context['user'] == customer_user
     authenticated_user_carts = customer_user.carts.filter(
@@ -258,7 +255,7 @@ def test_login_with_incorrect_cookie_token(customer_user, client):
     value = signing.get_cookie_signer(salt=utils.COOKIE_NAME).sign('incorrect')
     client.cookies[utils.COOKIE_NAME] = value
     response = client.post(
-        reverse('account_login'),
+        reverse('account:login'),
         {'username': customer_user.email, 'password': 'password'}, follow=True)
     assert response.context['user'] == customer_user
     authenticated_user_carts = customer_user.carts.filter(
@@ -320,8 +317,7 @@ def test_adding_invalid_quantity(cart, product_in_stock):
 @pytest.mark.parametrize('create_line_data, get_line_data, lines_equal', [
     (None, None, True),
     ({'gift-wrap': True}, None, False),
-    ({'gift-wrap': True}, {'gift-wrap': True}, True)
-])
+    ({'gift-wrap': True}, {'gift-wrap': True}, True)])
 def test_getting_line(
         create_line_data, get_line_data, lines_equal, cart, product_in_stock):
     variant = product_in_stock.variants.get()
@@ -540,8 +536,7 @@ def test_view_invalid_update_cart(client, product_in_stock, request_cart):
     variant = product_in_stock.variants.get()
     request_cart.add(variant, 1)
     response = client.post(
-        '/cart/update/%s/' % (variant.pk,),
-        {},
+        '/cart/update/%s/' % (variant.pk,), {},
         HTTP_X_REQUESTED_WITH='XMLHttpRequest')
     resp_decoded = json.loads(response.content.decode('utf-8'))
     assert response.status_code == 400

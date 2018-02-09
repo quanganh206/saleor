@@ -1,8 +1,8 @@
 import functools
 import operator
 
-from django.db.models import Q
 import graphene
+from django.db.models import Q
 from graphene import relay
 from graphene_django import DjangoConnectionField, DjangoObjectType
 
@@ -11,10 +11,9 @@ from ...product.models import (
     ProductVariant)
 from ...product.templatetags.product_images import product_first_image
 from ...product.utils import get_availability, products_visible_to_user
-from ..utils import CategoryAncestorsCache, DjangoPkInterface
 from ..core.types import PriceRangeType, PriceType
+from ..utils import CategoryAncestorsCache, DjangoPkInterface
 from .scalars import AttributesFilterScalar
-
 
 CONTEXT_CACHE_NAME = '__cache__'
 CACHE_ANCESTORS = 'ancestors'
@@ -24,12 +23,12 @@ def get_ancestors_from_cache(category, context):
     cache = getattr(context, CONTEXT_CACHE_NAME, None)
     if cache and CACHE_ANCESTORS in cache:
         return cache[CACHE_ANCESTORS].get(category)
-    else:
-        return category.get_ancestors()
+    return category.get_ancestors()
 
 
 class ProductAvailabilityType(graphene.ObjectType):
     available = graphene.Boolean()
+    on_sale = graphene.Boolean()
     discount = graphene.Field(lambda: PriceType)
     discount_local_currency = graphene.Field(lambda: PriceType)
     price_range = graphene.Field(lambda: PriceRangeType)

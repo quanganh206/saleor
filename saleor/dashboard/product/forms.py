@@ -1,3 +1,5 @@
+import bleach
+from bleach.sanitizer import ALLOWED_TAGS as BLEACH_ALLOWED_TAGS
 from django import forms
 from django.db.models import Count
 from django.forms.models import ModelChoiceIterator
@@ -6,18 +8,29 @@ from django.utils.encoding import smart_text
 from django.utils.text import slugify
 from django.utils.translation import pgettext_lazy
 
-from ...product.models import (
-    Collection, AttributeChoiceValue, Product, ProductAttribute, ProductImage,
-    ProductType, ProductVariant, Stock, StockLocation, VariantImage)
-from .widgets import ImagePreviewWidget
 from . import ProductBulkAction
+from ...product.models import (
+    AttributeChoiceValue, Collection, Product, ProductAttribute, ProductImage,
+    ProductType, ProductVariant, Stock, StockLocation, VariantImage)
 from ..widgets import RichTextEditorWidget
+from .widgets import ImagePreviewWidget
+
+
+class RichTextField(forms.CharField):
+    """A field for rich text editor, providing backend sanitization."""
+
+    widget = RichTextEditorWidget
+    ALLOWED_TAGS = BLEACH_ALLOWED_TAGS + ['br', 'p', 'h2', 'h3']
+
+    def to_python(self, value):
+        value = super().to_python(value)
+        value = bleach.clean(value, tags=self.ALLOWED_TAGS)
+        return value
 
 
 class ProductTypeSelectorForm(forms.Form):
-    """
-    Form that allows selecting product type.
-    """
+    """Form that allows selecting product type."""
+
     product_type = forms.ModelChoiceField(
         queryset=ProductType.objects.all(),
         label=pgettext_lazy('Product type form label', 'Product type'),
@@ -43,7 +56,7 @@ class StockForm(forms.ModelForm):
     def clean_location(self):
         location = self.cleaned_data['location']
         if (
-            not self.instance.pk and
+                not self.instance.pk and
                 self.variant.stock.filter(location=location).exists()):
             self.add_error(
                 'location',
@@ -83,12 +96,12 @@ class ProductTypeForm(forms.ModelForm):
         has_variants = self.cleaned_data['has_variants']
         product_attr = set(self.cleaned_data['product_attributes'])
         variant_attr = set(self.cleaned_data['variant_attributes'])
-        if not has_variants and len(variant_attr) > 0:
+        if not has_variants and variant_attr:
             msg = pgettext_lazy(
                 'Product type form error',
                 'Product variants are disabled.')
             self.add_error('variant_attributes', msg)
-        if len(product_attr & variant_attr) > 0:
+        if product_attr & variant_attr:
             msg = pgettext_lazy(
                 'Product type form error',
                 'A single attribute can\'t belong to both a product '
@@ -96,8 +109,8 @@ class ProductTypeForm(forms.ModelForm):
             self.add_error('variant_attributes', msg)
 
         if self.instance.pk:
-            variants_changed = not (self.fields['has_variants'].initial ==
-                                    has_variants)
+            variants_changed = (
+                self.fields['has_variants'].initial != has_variants)
             if variants_changed:
                 query = self.instance.products.all()
                 query = query.annotate(variants_counter=Count('variants'))
@@ -132,6 +145,7 @@ class ProductForm(forms.ModelForm):
 
     collections = forms.ModelMultipleChoiceField(
         required=False, queryset=Collection.objects.all())
+    description = RichTextField()
 
     def __init__(self, *args, **kwargs):
         self.product_attributes = []
@@ -141,7 +155,6 @@ class ProductForm(forms.ModelForm):
         self.product_attributes = self.product_attributes.prefetch_related(
             'values')
         self.prepare_fields_for_attributes()
-        self.fields['description'].widget = RichTextEditorWidget()
         self.fields["collections"].initial = Collection.objects.filter(
             products__name=self.instance)
 
@@ -379,6 +392,7 @@ class UploadImageForm(forms.ModelForm):
 
 class ProductBulkUpdate(forms.Form):
     """Performs one selected bulk action on all selected products."""
+
     action = forms.ChoiceField(choices=ProductBulkAction.CHOICES)
     products = forms.ModelMultipleChoiceField(queryset=Product.objects.all())
 

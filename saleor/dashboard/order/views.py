@@ -10,8 +10,8 @@ from django.utils.translation import pgettext_lazy
 from django_prices.templatetags.prices_i18n import gross
 from payments import PaymentStatus
 from prices import Price
-from satchless.item import InsufficientStock
 
+from ...core.exceptions import InsufficientStock
 from ...core.utils import get_paginator_items
 from ...order import GroupStatus
 from ...order.models import DeliveryGroup, Order, OrderLine, OrderNote
@@ -53,8 +53,8 @@ def order_details(request, order_pk):
     all_payments = order.payments.exclude(status=PaymentStatus.INPUT)
     payment = order.payments.last()
     groups = list(order)
-    captured = preauthorized = Price(0, currency=order.get_total().currency)
-    balance = captured - order.get_total()
+    captured = preauthorized = Price(0, currency=order.total.currency)
+    balance = captured - order.total
     if payment:
         can_capture = (
             payment.status == PaymentStatus.PREAUTH and
@@ -66,7 +66,7 @@ def order_details(request, order_pk):
         preauthorized = payment.get_total_price()
         if payment.status == PaymentStatus.CONFIRMED:
             captured = payment.get_captured_price()
-            balance = captured - order.get_total()
+            balance = captured - order.total
     else:
         can_capture = can_release = can_refund = False
 
@@ -109,7 +109,7 @@ def order_add_note(request, order_pk):
 def capture_payment(request, order_pk, payment_pk):
     order = get_object_or_404(Order, pk=order_pk)
     payment = get_object_or_404(order.payments, pk=payment_pk)
-    amount = order.get_total().quantize('0.01').gross
+    amount = order.total.quantize('0.01').gross
     form = CapturePaymentForm(request.POST or None, payment=payment,
                               initial={'amount': amount})
     if form.is_valid() and form.capture():
@@ -307,7 +307,7 @@ def cancel_delivery_group(request, order_pk, group_pk):
 @staff_member_required
 @permission_required('order.edit_order')
 def add_variant_to_group(request, order_pk, group_pk):
-    """ Adds variant in given quantity to existing or new group in order. """
+    """Add variant in given quantity to an existing or new order group."""
     order = get_object_or_404(Order, pk=order_pk)
     group = get_object_or_404(order.groups.all(), pk=group_pk)
     form = AddVariantToDeliveryGroupForm(
@@ -317,8 +317,7 @@ def add_variant_to_group(request, order_pk, group_pk):
         msg_dict = {
             'quantity': form.cleaned_data.get('quantity'),
             'variant': form.cleaned_data.get('variant'),
-            'group': group
-        }
+            'group': group}
         try:
             with transaction.atomic():
                 form.save()

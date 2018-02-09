@@ -14,10 +14,10 @@ from django_prices.models import Price, PriceField
 from mptt.managers import TreeManager
 from mptt.models import MPTTModel
 from prices import PriceRange
-from satchless.item import InsufficientStock, Item, ItemRange
 from text_unidecode import unidecode
 from versatileimagefield.fields import PPOIField, VersatileImageField
 
+from ..core.exceptions import InsufficientStock
 from ..discount.utils import calculate_discounted_price
 from .utils import get_attributes_display_map
 
@@ -87,12 +87,13 @@ class ProductQuerySet(models.QuerySet):
             Q(is_published=True))
 
 
-class Product(models.Model, ItemRange):
+class Product(models.Model):
     product_type = models.ForeignKey(
         ProductType, related_name='products', on_delete=models.CASCADE)
     name = models.CharField(max_length=128)
     description = models.TextField()
-    category = models.ForeignKey(Category, related_name='products')
+    category = models.ForeignKey(
+        Category, related_name='products', on_delete=models.CASCADE)
     price = PriceField(
         currency=settings.DEFAULT_CURRENCY, max_digits=12, decimal_places=2)
     available_on = models.DateField(blank=True, null=True)
@@ -155,24 +156,29 @@ class Product(models.Model, ItemRange):
     def set_attribute(self, pk, value_pk):
         self.attributes[smart_text(pk)] = smart_text(value_pk)
 
-    def get_price_range(self, discounts=None, **kwargs):
-        if not self.variants.exists():
-            price = calculate_discounted_price(
-                self, self.price, discounts, **kwargs)
-            return PriceRange(price, price)
-        else:
-            return super().get_price_range(
-                discounts=discounts, **kwargs)
+    def get_price_per_item(self, item, discounts=None):
+        return item.get_price_per_item(discounts)
 
-    def get_gross_price_range(self, **kwargs):
-        grosses = [self.get_price_per_item(item, **kwargs) for item in self]
+    def get_price_range(self, discounts=None):
+        if self.variants.exists():
+            prices = [
+                self.get_price_per_item(variant, discounts=discounts)
+                for variant in self]
+            return PriceRange(min(prices), max(prices))
+        price = calculate_discounted_price(self, self.price, discounts)
+        return PriceRange(price, price)
+
+    def get_gross_price_range(self, discounts=None):
+        grosses = [
+            self.get_price_per_item(variant, discounts=discounts)
+            for variant in self]
         if not grosses:
             return None
         grosses = sorted(grosses, key=lambda x: x.tax)
         return PriceRange(min(grosses), max(grosses))
 
 
-class ProductVariant(models.Model, Item):
+class ProductVariant(models.Model):
     sku = models.CharField(max_length=32, unique=True)
     name = models.CharField(max_length=100, blank=True)
     price_override = PriceField(
@@ -197,10 +203,9 @@ class ProductVariant(models.Model, Item):
     def get_stock_quantity(self):
         return sum([stock.quantity_available for stock in self.stock.all()])
 
-    def get_price_per_item(self, discounts=None, **kwargs):
+    def get_price_per_item(self, discounts=None):
         price = self.price_override or self.product.price
-        price = calculate_discounted_price(self.product, price, discounts,
-                                           **kwargs)
+        price = calculate_discounted_price(self.product, price, discounts)
         return price
 
     def get_absolute_url(self):
@@ -261,11 +266,13 @@ class ProductVariant(models.Model, Item):
             stock, key=(lambda s: s.cost_price or zero_price), reverse=False)
         if stock:
             return stock[0]
+        return None
 
     def get_cost_price(self):
         stock = self.select_stockrecord()
         if stock:
             return stock.cost_price
+        return None
 
 
 class StockLocation(models.Model):
@@ -382,9 +389,12 @@ class VariantImage(models.Model):
 
 class Collection(models.Model):
     name = models.CharField(max_length=128, unique=True)
-    slug = models.SlugField()
+    slug = models.SlugField(max_length=255)
     products = models.ManyToManyField(
         Product, blank=True, related_name='collections')
+
+    class Meta:
+        ordering = ['pk']
 
     def __str__(self):
         return self.name
@@ -392,4 +402,4 @@ class Collection(models.Model):
     def get_absolute_url(self):
         return reverse(
             'product:collection',
-            kwargs={'slug': self.slug, 'collection_id': self.id})
+            kwargs={'pk': self.id, 'slug': self.slug})
